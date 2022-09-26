@@ -15,33 +15,26 @@ import (
 	"net"
 )
 
-type HelloService struct{
-	hello.UnimplementedHelloServer
+const (
+	// Address grpc服务地址
+	Address = ":9000"
+)
+
+// 定义helloService并实现约定的接口
+type helloService struct {}
+
+// HelloService Hello服务
+var HelloService = new(helloService)
+
+// SayHello 实现Hello服务接口
+func (*helloService) SayHello(ctx context.Context, in *hello.HelloRequest) (*hello.HelloResponse, error) {
+	rsp := new(hello.HelloResponse)
+	rsp.Message = "hello: " + in.Name
+	return rsp, nil
 }
 
-func (t *HelloService) SayHello(ctx context.Context, in *hello.HelloRequest) (*hello.HelloResponse, error) {
-	md, ok := metadata.FromIncomingContext(ctx)
-	if !ok {
-		return nil, grpc.Errorf(codes.Unauthenticated, "无Token认证信息")
-	}
-	var (
-		appid  string
-		appkey string
-	)
-	if val, ok := md["appid"]; ok {
-		appid = val[0]
-	}
-	if val, ok := md["appkey"]; ok {
-		appkey = val[0]
-	}
-	if appid != "101010" || appkey != "i am key" {
-		return nil, grpc.Errorf(codes.Unauthenticated, "Token认证信息无效: appid=%s, appkey=%s", appid, appkey)
-	}
-	resp := new(hello.HelloResponse)
-	resp.Message = fmt.Sprintf("Hello %s. Token info: appid=%s,appkey=%s", in.Name, appid, appkey)
-	return resp, nil
-}
 func main() {
+	var opts []grpc.ServerOption
 	// 使用tls进行加载key pair对
 	certifacate, err := tls.LoadX509KeyPair("keys/server/server.pem", "keys/server/server.key")
 	if err != nil {
@@ -62,14 +55,48 @@ func main() {
 		ClientAuth: tls.RequireAndVerifyClientCert,  // 需要并且验证客户端证书
 		ClientCAs: certPool,  // 客户端证书池
 	})
+	opts = append(opts, grpc.Creds(creds))
 
-	listen, _ := net.Listen("tcp", ":9000")
-	gServer := grpc.NewServer(grpc.Creds(creds))
-	hello.RegisterHelloServer(gServer, &HelloService{})
-	fmt.Println("Listen ont 9000 with TLS + Token")
+	// 注册interceptor
+	opts = append(opts, grpc.UnaryInterceptor(interceptor))
+
+	listen, _ := net.Listen("tcp", Address)
+	gServer := grpc.NewServer(opts...)
+	hello.RegisterHelloServer(gServer, HelloService)
+	fmt.Println("Listen on 9000 with TLS + Token + Interceptor")
 	_ = gServer.Serve(listen)
 }
 
+// interceptor拦截器
+func interceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	err := auth(ctx)
+	if err != nil {
+		return nil, err
+	}
+	// 继续处理请求
+	return handler(ctx, req)
+}
+
+func auth(ctx context.Context) error {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return grpc.Errorf(codes.Unauthenticated, "无token认证信息")
+	}
+	var (
+		appid string
+		appkey string
+	)
+	if val, ok := md["appid"]; ok {
+		appid = val[0]
+	}
+	if val, ok := md["appkey"]; ok {
+		appkey = val[0]
+	}
+	if appid != "101010" || appkey != "i am key" {
+		return grpc.Errorf(codes.Unauthenticated, "Token认识信息无效：appid=%s, appkey=%s", appid, appkey)
+	}
+	return nil
+}
 
 
 
