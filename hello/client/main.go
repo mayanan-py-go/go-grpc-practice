@@ -6,7 +6,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"log"
-	"my_grpc/proto/hello"
+	"my_grpc/proto/hello_http"
 )
 
 func main() {
@@ -14,8 +14,8 @@ func main() {
 	if err != nil {
 		log.Fatalln("grpc.Dial err:", err)
 	}
-	helloClient := hello.NewHelloClient(clientConn)
-	reply, err := helloClient.SayHello(context.Background(), &hello.HelloRequest{Name: "gRPC"})
+	helloClient := hello_http.NewHelloClient(clientConn)
+	reply, err := helloClient.SayHello(context.Background(), &hello_http.HelloHTTPRequest{Name: "gRPC"})
 	if err != nil {
 		log.Fatalln("helloClient.SayHello err:", err)
 	}

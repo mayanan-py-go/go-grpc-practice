@@ -5,17 +5,19 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
 	"log"
-	"my_grpc/proto/hello"
+	"my_grpc/proto/hello_http"
 	"net"
 )
 
 const (
 	Address = ":9000"
 )
-type helloService struct {}
+type helloService struct {
+	hello_http.UnimplementedHelloServer
+}
 var HelloService = new(helloService)
-func (*helloService) SayHello(ctx context.Context, in *hello.HelloRequest) (*hello.HelloResponse, error) {
-	rsp := new(hello.HelloResponse)
+func (*helloService) SayHello(ctx context.Context, in *hello_http.HelloHTTPRequest) (*hello_http.HelloHTTPResponse, error) {
+	rsp := new(hello_http.HelloHTTPResponse)
 	rsp.Message = "hello " + in.Name
 	return rsp, nil
 }
@@ -28,7 +30,7 @@ func main() {
 	gServer := grpc.NewServer()
 
 	// 注册服务
-	hello.RegisterHelloServer(gServer, HelloService)
+	hello_http.RegisterHelloServer(gServer, HelloService)
 
 	grpclog.Errorln("Listen on ", Address)
 	err = gServer.Serve(listen)
